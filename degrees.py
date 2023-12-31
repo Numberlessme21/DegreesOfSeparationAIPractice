@@ -1,90 +1,71 @@
 import csv
-import sys
-
-from util import Node, StackFrontier, QueueFrontier
-
-# Maps names to a set of corresponding person_ids
-names = {}
-
-# Maps person_ids to a dictionary of: name, birth, movies (a set of movie_ids)
+# Maps personIds to a dictionary of: name, birth, movies (a set of movieIds)
 people = {}
 
-# Maps movie_ids to a dictionary of: title, year, stars (a set of person_ids)
+# Maps movieIds to a dictionary of: title, year, stars (a set of personIds)
 movies = {}
 
 
-def load_data(directory):
+def loadData(directory):
     """
     Load data from CSV files into memory.
     """
-    # Load people
-    with open(f"{directory}/people.csv", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            people[row["id"]] = {
-                "name": row["name"],
-                "birth": row["birth"],
-                "movies": set()
-            }
-            if row["name"].lower() not in names:
-                names[row["name"].lower()] = {row["id"]}
-            else:
-                names[row["name"].lower()].add(row["id"])
-
-    # Load movies
-    with open(f"{directory}/movies.csv", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            movies[row["id"]] = {
-                "title": row["title"],
-                "year": row["year"],
-                "stars": set()
-            }
-
-    # Load stars
-    with open(f"{directory}/stars.csv", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+    peopleList = []
+    movieList = []
+    with open(f'{directory}/movies.csv', mode='r', encoding='utf8') as m:
+        mo = csv.reader(m, delimiter=',')
+        for i in mo:
+            movieList.append(i)    
+    with open(directory+"/people.csv", mode='r', encoding='utf8') as p:
+        pe = csv.reader(p, delimiter=',')
+        for i in pe:
+            peopleList.append(i)
+    for i in peopleList:
+        people[str(i[0])] = {'name':i[1].strip(), 'movies':[]}
+    for i in movieList:
+        movies[str(i[0])] = {'title':i[1].strip(), 'stars':[]}
+    with open(directory+"/stars.csv", mode='r', encoding='utf8') as s:
+        st = csv.reader(s, delimiter=',')
+        for i in st:
             try:
-                people[row["person_id"]]["movies"].add(row["movie_id"])
-                movies[row["movie_id"]]["stars"].add(row["person_id"])
-            except KeyError:
-                pass
+                people[i[0].strip()]['movies'].append(i[1].strip())
+            except:
+                people[i[0].strip()] = {'movies':i[1].strip()}
+            try:
+                movies[i[1].strip()]['stars'].append(i[0].strip())
+            except:
+                movies[i[1].strip()] = {'stars':i[0].strip()}
+    return None
 
 def main():
-    if len(sys.argv) > 2:
-        sys.exit("Usage: python degrees.py [directory]")
-    directory = sys.argv[1] if len(sys.argv) == 2 else "large"
-
-    # Load data from files into memory
-    print("Loading data...")
-    load_data(directory)
-    print("Data loaded.")
-    while True:
-        source = person_id_for_name(input("Name: "))
-        if source is None:
-            sys.exit("Person not found.")
-        target = person_id_for_name(input("Name: "))
-        if target is None:
-            sys.exit("Person not found.")
-        path = shortest_path(source, target)
-
-        if path is None:
-            print("Not connected.")
+    startBool = True
+    while startBool:
+        start = personIdForName(input('Enter the first person: '))
+        if start in people.keys():
+            startBool = False
         else:
-            degrees = len(path)
-            print(f"{degrees} degrees of separation.")
-            path = [(None, source)] + path
-            for i in range(degrees):
-                person1 = people[path[i][1]]["name"]
-                person2 = people[path[i + 1][1]]["name"]
-                movie = movies[path[i + 1][0]]["title"]
-                print(f"{i + 1}: {person1} and {person2} starred in {movie}")
+            print('Not found')
+    targetBool = True
+    while targetBool:
+        target = personIdForName(input('Enter the second person: '))
+        if target in people.keys():
+            targetBool = False
+        else:
+            print('Not found')
+    degrees = shortestPath(start,target)
+    if degrees == None:
+        print('No link')
+    else:
+        if len(degrees) == 2:
+            print(len(degrees)-1, 'degree of separation')
+        else:
+            print(len(degrees)-1, 'degrees of separation')
+        for i in range(1,len(degrees)):
+            print(people[degrees[i-1][1]]['name'],'was in',movies[degrees[i][0]]['title'],'with',people[degrees[i][1]]['name'])
 
-
-def shortest_path(source, target):
+def shortestPath(source, target):
     """
-    Returns the shortest list of (movie_id, person_id) pairs
+    Returns the shortest list of (movieId, personId) pairs
     that connect the source to the target.
 
     If no possible path, returns None.
@@ -127,8 +108,7 @@ def shortest_path(source, target):
                     while n.parent != None:
                         connection.insert(0,(n.film, n.id))
                         n = n.parent
-                    print(connection)
-                    print(count)
+                    connection.insert(0, (None,source))
                     return connection
                 frontier[0].children()
                 past.append(frontier[0])
@@ -139,44 +119,57 @@ def shortest_path(source, target):
         frontierids.pop(0)
 
 
-def person_id_for_name(name):
+def personIdForName(name):
     """
     Returns the IMDB id for a person's name,
     resolving ambiguities as needed.
     """
-    person_ids = list(names.get(name.lower(), set()))
-    if len(person_ids) == 0:
-        return None
-    elif len(person_ids) > 1:
-        print(f"Which '{name}'?")
-        for person_id in person_ids:
-            person = people[person_id]
-            name = person["name"]
-            birth = person["birth"]
-            print(f"ID: {person_id}, Name: {name}, Birth: {birth}")
+    names = []
+    ids = []
+    keys = list(people.keys())
+    for i in keys:
         try:
-            person_id = input("Intended Person ID: ")
-            if person_id in person_ids:
-                return person_id
-        except ValueError:
+            names.append(people[i]['name'])
+        except:
             pass
+    keys = list(keys)
+    for i in range(names.count(name)):
+        x = names.index(name)
+        ids.append(keys[x])
+        names.pop(x)
+        keys.pop(x)
+    if len(ids) == 1:
+        return ids[0]
+    elif len(ids) == 0:
         return None
     else:
-        return person_ids[0]
+        print('Which \''+name+'\'?')
+        while True:
+            for i in range(len(ids)):
+                print('ID: '+ids[i]+', Name: '+name)
+            inp = input('Intended Person ID: ')
+            if inp in ids:
+                return inp
 
 
-def neighbors_for_person(person_id):
-    """
-    Returns (movie_id, person_id) pairs for people
-    who starred with a given person.
-    """
-    movie_ids = people[person_id]["movies"]
-    neighbors = set()
-    for movie_id in movie_ids:
-        for person_id in movies[movie_id]["stars"]:
-            neighbors.add((movie_id, person_id))
-    return neighbors
 
+directory = 'large'
 
-if __name__ == "__main__":
+    # Load data from files into memory
+print("Loading data...")
+loadData(directory)
+print("Data loaded.")
+runAgain = True        
+while runAgain:
     main()
+    i = input('Would you like to play again (y/n)? ')
+    authError = True
+    while authError:
+        if i == 'y':
+           authError = False
+        elif i == 'n':
+            runAgain = False
+            authError = False
+        else:
+            print('Didn\'t understand input')
+            authError = True
