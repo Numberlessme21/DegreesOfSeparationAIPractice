@@ -1,0 +1,1 @@
+A program using breadth first search from a csv file containing actor data to find the fewest degrees of separation between two actors, using data from IMDb. This has been inspired by the Harvard CS50AI course, and the csv file, file structuring and subroutine separation is based on their model, but I have written all of the code for the main .py file.
